@@ -136,6 +136,10 @@ def create_torch_dataset(
         raise ValueError("Repo ID is not set. Cannot create dataset.")
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
+    if data_config.rebot_cache_dir is not None:
+        from openpi.training.rebot_dataset import RebotDataset
+
+        return RebotDataset(data_config.rebot_cache_dir, action_horizon, data_config.rebot_split)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
     dataset = lerobot_dataset.LeRobotDataset(

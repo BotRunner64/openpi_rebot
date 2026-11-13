@@ -65,6 +65,9 @@ class AssetsConfig:
 class DataConfig:
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
+    # Prepared local Rebot v3 metadata/chunks; videos remain read on demand.
+    rebot_cache_dir: str | None = None
+    rebot_split: Literal["train", "val"] = "train"
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
@@ -198,6 +201,24 @@ class DataConfigFactory(abc.ABC):
         except FileNotFoundError:
             logging.info(f"Norm stats not found in {data_assets_dir}, skipping.")
         return None
+
+
+@dataclasses.dataclass(frozen=True)
+class RebotDataConfig(DataConfigFactory):
+    cache_dir: str = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/cache/rebot_umi_h50"
+    split: Literal["train", "val"] = "train"
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        from openpi.training.rebot_dataset import RebotOutputs
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            rebot_cache_dir=self.cache_dir,
+            rebot_split=self.split,
+            data_transforms=_transforms.Group(outputs=[RebotOutputs()]),
+            model_transforms=ModelTransformFactory()(model_config),
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -509,6 +530,9 @@ class TrainConfig:
     num_workers: int = 2
     # Number of train steps (batches) to run.
     num_train_steps: int = 30_000
+    # Optional deterministic validation for a dataset factory exposing a split.
+    validation_interval: int = 0
+    validation_batches: int = 4
 
     # How often (in steps) to log training metrics.
     log_interval: int = 100
@@ -969,6 +993,46 @@ _CONFIGS = [
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
 ]
+
+_REBOT_ROOT = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi"
+_REBOT_CONFIG = TrainConfig(
+    name="pi05_rebot_umi",
+    model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
+    data=RebotDataConfig(
+        repo_id="BingqianWu/rebot-manipulation",
+        assets=AssetsConfig(assets_dir=f"{_REBOT_ROOT}/repo/assets/pi05_rebot_umi", asset_id="rebot"),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(f"{_REBOT_ROOT}/checkpoints/pi05_base/params"),
+    assets_base_dir=f"{_REBOT_ROOT}/repo/assets",
+    checkpoint_base_dir=f"{_REBOT_ROOT}/runs",
+    batch_size=64,
+    num_train_steps=20_000,
+    num_workers=8,
+    fsdp_devices=2,
+    log_interval=10,
+    save_interval=1000,
+    keep_period=5000,
+    validation_interval=1000,
+    validation_batches=4,
+    policy_metadata={"action_representation": "umi_relative_next_state", "control_frequency": 30},
+)
+_CONFIGS.extend(
+    [
+        _REBOT_CONFIG,
+        dataclasses.replace(
+            _REBOT_CONFIG,
+            name="pi05_rebot_umi_smoke",
+            batch_size=16,
+            num_train_steps=50,
+            num_workers=4,
+            log_interval=1,
+            save_interval=25,
+            keep_period=25,
+            validation_interval=25,
+            validation_batches=2,
+        ),
+    ]
+)
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
     raise ValueError("Config names must be unique.")
