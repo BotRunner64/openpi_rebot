@@ -50,3 +50,19 @@ Production requires a successful smoke marker matching both the code commit and 
 manifest hash. Production uses a fresh experiment initialized from pi05_base; it does
 not continue from the smoke experiment. The launcher always requests resume, so a
 platform restart resumes the same production experiment instead of overwriting it.
+
+## Data loading optimization
+
+Production resumes with `scripts/run_rebot_optimized.sh`. It selects the tested
+worker count from `logs/rebot-loader-selection.json` in the shared openpi root.
+Only CPU data-reading parallelism changes; model, action construction, optimizer,
+batch size and learning-rate schedule remain identical to the smoke-tested baseline.
+The optimized launcher verifies those core source files against that baseline and
+requires a complete existing training checkpoint.
+
+A CPU-only loader test on the training node, while the original job was running,
+measured 67 / 130 / 168 / 244 samples per second with 8 / 16 / 24 / 32 workers.
+All first-batch model-input hashes matched exactly. Each timing uses a warmup
+wave and 64 measured batches. These numbers describe the input pipeline, not the
+end-to-end training speedup; actual GPU utilization is measured after restarting.
+No whole-video predecoding or image cache was enabled.
