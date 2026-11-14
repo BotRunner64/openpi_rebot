@@ -1,4 +1,4 @@
-"""Local LeRobot-v3 Rebot data with UMI chunk-relative next-state targets.
+"""Local LeRobot-v3 Rebot data with chunk-relative next-state targets.
 
 Pose matrices in the source are flattened column-major. Every future pose in a
 chunk uses the observed pose as its anchor: inv(T_observed) @ T_future.

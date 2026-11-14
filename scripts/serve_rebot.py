@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve the trained Rebot UMI checkpoint from the openpi repository."""
+"""Serve the post-trained Rebot checkpoint from the openpi repository."""
 
 import argparse
 import dataclasses

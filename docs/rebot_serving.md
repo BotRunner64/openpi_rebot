@@ -1,4 +1,4 @@
-# Rebot UMI policy server
+# Rebot policy server
 
 在本 openpi 仓库根目录执行：
 
@@ -9,7 +9,7 @@ python scripts/serve_rebot.py --port 8000
 
 服务只依赖 openpi。本地 checkpoint、缓存和模型配置均从本仓库所在的部署目录解析，不需要 rebot_control 的路径或 Python 模块。默认加载 `../checkpoints/pi05_rebot_umi_20000`，采样 10 步；可以用 `--checkpoint` 和 `--num-steps` 覆盖。先完成合成观测预热，再进入 WebSocket 监听。运行时每次推理使用客户端提交的 prompt，预热文本不会作为默认任务指令。
 
-默认监听 `127.0.0.1:8000`。跨机器连接时显式指定 `--host 0.0.0.0`，客户端使用服务所在主机地址。WebSocket 使用 openpi 自带的 NumPy MessagePack 协议，元数据声明列优先旋转、30Hz、50 步 horizon、`absolute_eef26`。响应动作形状为 `(50,26)`：先左臂再右臂，每臂 xyz + R9 + openness，UMI 相对动作已还原为绝对未来状态。
+默认监听 `127.0.0.1:8000`。跨机器连接时显式指定 `--host 0.0.0.0`，客户端使用服务所在主机地址。WebSocket 使用 openpi 自带的 NumPy MessagePack 协议，元数据声明列优先旋转、30Hz、50 步 horizon、`absolute_eef26`。响应动作形状为 `(50,26)`：先左臂再右臂，每臂 xyz + R9 + openness，相对动作已还原为绝对未来状态。
 
 在 rebot_control 仓库根目录启动客户端：
 

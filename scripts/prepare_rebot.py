@@ -86,7 +86,7 @@ def stats(values, rotations):
     flat = values.reshape(-1, values.shape[-1])
     q01, q99 = np.quantile(flat, [0.01, 0.99], axis=0)
     mean, std = flat.mean(axis=0), flat.std(axis=0)
-    # UMI uses the continuous rotation representation without range rescaling.
+    # Use the continuous rotation representation without range rescaling.
     q01[rotations], q99[rotations], mean[rotations], std[rotations] = -1, 1, 0, 1
     return normalize.NormStats(mean=mean, std=std, q01=q01, q99=q99)
 

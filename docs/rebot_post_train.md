@@ -1,4 +1,4 @@
-# Rebot pi05 full fine-tuning
+# Rebot pi05 post-train
 
 The source dataset is the unchanged LeRobot v3 snapshot at
 `/inspire/hdd/global_user/czxs253130598/projects/real_projects/datasets/rebot-manipulation/packing`.
@@ -13,7 +13,6 @@ absolute future gripper openness: 10 dimensions per arm, padded from 20 to 32.
 The observed state retains its absolute 26-dimensional source representation.
 Source rotations use column-major R9 order. Policy output transforms undo
 normalization and the relative transform, returning absolute 26D target states.
-This adapts UMI's action representation, not UMI's entire observation-history model.
 
 Windows use stride one and require 50 real future states within the same episode.
 No terminal padding or cross-episode labels are used. Seed 42 selects six complete
