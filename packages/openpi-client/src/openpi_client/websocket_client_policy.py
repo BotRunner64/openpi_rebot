@@ -1,4 +1,6 @@
 import logging
+import math
+import socket
 import time
 from typing import Dict, Optional, Tuple
 
@@ -15,7 +17,13 @@ class WebsocketClientPolicy(_base_policy.BasePolicy):
     See WebsocketPolicyServer for a corresponding server implementation.
     """
 
-    def __init__(self, host: str = "0.0.0.0", port: Optional[int] = None, api_key: Optional[str] = None) -> None:
+    def __init__(
+        self, host: str = "0.0.0.0", port: Optional[int] = None,
+        api_key: Optional[str] = None, timeout: Optional[float] = None,
+    ) -> None:
+        if timeout is not None and (not math.isfinite(timeout) or timeout <= 0):
+            raise ValueError("timeout must be finite and positive")
+        self.timeout = timeout
         if host.startswith("ws"):
             self._uri = host
         else:
@@ -35,11 +43,18 @@ class WebsocketClientPolicy(_base_policy.BasePolicy):
             try:
                 headers = {"Authorization": f"Api-Key {self._api_key}"} if self._api_key else None
                 conn = websockets.sync.client.connect(
-                    self._uri, compression=None, max_size=None, additional_headers=headers
+                    self._uri, compression=None, max_size=None, additional_headers=headers,
+                    open_timeout=self.timeout if self.timeout is not None else 10., close_timeout=1.
                 )
-                metadata = msgpack_numpy.unpackb(conn.recv())
+                try:
+                    metadata = msgpack_numpy.unpackb(conn.recv(timeout=self.timeout))
+                except BaseException:
+                    conn.close()
+                    raise
                 return conn, metadata
             except ConnectionRefusedError:
+                if self.timeout is not None:
+                    raise
                 logging.info("Still waiting for server...")
                 time.sleep(5)
 
@@ -47,11 +62,19 @@ class WebsocketClientPolicy(_base_policy.BasePolicy):
     def infer(self, obs: Dict) -> Dict:  # noqa: UP006
         data = self._packer.pack(obs)
         self._ws.send(data)
-        response = self._ws.recv()
+        response = self._ws.recv(timeout=self.timeout)
         if isinstance(response, str):
             # we're expecting bytes; if the server sends a string, it's an error.
             raise RuntimeError(f"Error in inference server:\n{response}")
         return msgpack_numpy.unpackb(response)
+
+    def close(self) -> None:
+        """Close the transport and wake an inference blocked on socket I/O."""
+        try:
+            self._ws.socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self._ws.close()
 
     @override
     def reset(self) -> None:
