@@ -16,7 +16,7 @@ from openpi.training import config, data_loader
 
 def main(workers: tuple[int, ...] = (8, 16, 24, 32), batches: int = 64):
     torch.set_num_threads(1)
-    cfg = config.get_config("pi05_rebot_umi")
+    cfg = config.get_config("pi05_rebot_post_train")
     dc = cfg.data.create(cfg.assets_dirs, cfg.model)
     dataset = data_loader.transform_dataset(
         data_loader.create_torch_dataset(dc, cfg.model.action_horizon, cfg.model), dc

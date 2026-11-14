@@ -49,11 +49,11 @@ def create_policy(args):
     checkpoint = args.checkpoint.expanduser().resolve()
     if not (checkpoint / "params").is_dir() or not (checkpoint / "assets/rebot/norm_stats.json").is_file():
         raise ValueError("Checkpoint must contain params/ and assets/rebot/norm_stats.json.")
-    cfg = config.get_config("pi05_rebot_umi")
+    cfg = config.get_config("pi05_rebot_post_train")
     cfg = dataclasses.replace(
         cfg, assets_base_dir=str(REPO_ROOT / "assets"),
         data=dataclasses.replace(cfg.data, assets=dataclasses.replace(
-            cfg.data.assets, assets_dir=str(REPO_ROOT / "assets/pi05_rebot_umi"))),
+            cfg.data.assets, assets_dir=str(REPO_ROOT / "assets/pi05_rebot_post_train"))),
     )
     return policy_config.create_trained_policy(
         cfg, checkpoint, sample_kwargs={"num_steps": args.num_steps})
@@ -64,7 +64,7 @@ def parser():
     cli.add_argument("--host", default="127.0.0.1", help="Listen address (default: loopback)")
     cli.add_argument("--port", type=int, default=8000)
     cli.add_argument("--checkpoint", type=Path,
-                     default=DEPLOY_ROOT / "checkpoints/pi05_rebot_umi_20000")
+                     default=DEPLOY_ROOT / "checkpoints/pi05_rebot_post_train_20000")
     cli.add_argument("--num-steps", type=int, default=10, help="Flow-matching sampling steps")
     cli.add_argument("--mock-policy", action="store_true", help="Serve a hold policy for simulation tests")
     cli.add_argument("--mock-latency", type=float, default=.08)

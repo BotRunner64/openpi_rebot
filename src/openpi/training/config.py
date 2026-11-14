@@ -205,7 +205,7 @@ class DataConfigFactory(abc.ABC):
 
 @dataclasses.dataclass(frozen=True)
 class RebotDataConfig(DataConfigFactory):
-    cache_dir: str = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/cache/rebot_umi_h50"
+    cache_dir: str = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/cache/rebot_post_train_h50"
     split: Literal["train", "val"] = "train"
 
     @override
@@ -996,11 +996,11 @@ _CONFIGS = [
 
 _REBOT_ROOT = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi"
 _REBOT_CONFIG = TrainConfig(
-    name="pi05_rebot_umi",
+    name="pi05_rebot_post_train",
     model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
     data=RebotDataConfig(
         repo_id="BingqianWu/rebot-manipulation",
-        assets=AssetsConfig(assets_dir=f"{_REBOT_ROOT}/repo/assets/pi05_rebot_umi", asset_id="rebot"),
+        assets=AssetsConfig(assets_dir=f"{_REBOT_ROOT}/repo/assets/pi05_rebot_post_train", asset_id="rebot"),
     ),
     weight_loader=weight_loaders.CheckpointWeightLoader(f"{_REBOT_ROOT}/checkpoints/pi05_base/params"),
     assets_base_dir=f"{_REBOT_ROOT}/repo/assets",
@@ -1014,14 +1014,14 @@ _REBOT_CONFIG = TrainConfig(
     keep_period=5000,
     validation_interval=1000,
     validation_batches=4,
-    policy_metadata={"action_representation": "umi_relative_next_state", "control_frequency": 30},
+    policy_metadata={"action_representation": "relative_next_state", "control_frequency": 30},
 )
 _CONFIGS.extend(
     [
         _REBOT_CONFIG,
         dataclasses.replace(
             _REBOT_CONFIG,
-            name="pi05_rebot_umi_smoke",
+            name="pi05_rebot_post_train_smoke",
             batch_size=16,
             num_train_steps=50,
             num_workers=4,

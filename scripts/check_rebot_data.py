@@ -13,7 +13,7 @@ from openpi.training.rebot_dataset import RebotDataset, absolute_actions
 
 
 def main():
-    cfg = config.get_config("pi05_rebot_umi")
+    cfg = config.get_config("pi05_rebot_post_train")
     dc = cfg.data.create(cfg.assets_dirs, cfg.model)
     train, val = RebotDataset(dc.rebot_cache_dir, 50), RebotDataset(dc.rebot_cache_dir, 50, "val")
     assert not set(train.manifest["train_episodes"]) & set(train.manifest["val_episodes"])
