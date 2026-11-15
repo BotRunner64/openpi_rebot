@@ -8,7 +8,6 @@ import math
 import os
 from pathlib import Path
 import sys
-import time
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEPLOY_ROOT = REPO_ROOT.parent
@@ -27,22 +26,7 @@ def warmup_observation():
             "image_mask": {key: np.bool_(True) for key in keys}, "prompt": "warmup"}
 
 
-class HoldPolicy:
-    """Hold the received state for transport-only simulation tests."""
-
-    def __init__(self, latency):
-        self.latency = latency
-
-    def infer(self, observation):
-        import numpy as np
-
-        time.sleep(self.latency)
-        return {"actions": np.repeat(np.asarray(observation["state"])[None], 50, axis=0)}
-
-
 def create_policy(args):
-    if args.mock_policy:
-        return HoldPolicy(args.mock_latency)
     from openpi.policies import policy_config
     from openpi.training import config
 
@@ -81,21 +65,27 @@ def main(argv=None):
     os.environ.setdefault("OPENPI_DATA_HOME", str(DEPLOY_ROOT / "cache/openpi"))
     sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT / "packages/openpi-client/src")]
     try:
-        import numpy as np
-        from openpi.serving.websocket_policy_server import WebsocketPolicyServer
+        import rebot_policy_link as link
 
-        print("Loading policy and compiling a warmup inference before listening...", flush=True)
-        policy = create_policy(args)
-        actions = np.asarray(policy.infer(warmup_observation())["actions"])
-        if actions.shape != (50, 26) or not np.all(np.isfinite(actions)):
-            raise ValueError("Policy must return finite absolute EEF states with shape (50, 26).")
-        metadata = {"action_format": "absolute_eef26", "rotation_order": "column_major",
-                    "control_frequency": 30, "action_horizon": 50,
-                    "mock_policy": args.mock_policy, "num_steps": args.num_steps}
-        server = WebsocketPolicyServer(policy, host=args.host, port=args.port, metadata=metadata)
-        print(f"Policy ready: ws://{args.host}:{args.port}; absolute EEF 50x26; "
-              f"mock={args.mock_policy}.", flush=True)
-        server.serve_forever()
+        if args.mock_policy:
+            infer = link.HoldPolicy(args.mock_latency)
+            cameras = link.REBOT_RGB
+        else:
+            import numpy as np
+
+            from openpi.policies import rebot_policy
+
+            print("Loading policy and compiling a warmup inference before listening...", flush=True)
+            policy = create_policy(args)
+            actions = np.asarray(policy.infer(warmup_observation())["actions"])
+            if actions.shape != (50, 26) or not np.all(np.isfinite(actions)):
+                raise ValueError("Policy must return finite absolute EEF states with shape (50, 26).")
+            infer = rebot_policy.RebotLinkPolicy(policy)
+            cameras = rebot_policy.CAMERAS
+        metadata = link.metadata(link.REBOT_STATE, cameras, mock=args.mock_policy, num_steps=args.num_steps)
+        print(f"Policy ready: ws://{args.host}:{args.port}; rebot-policy-link; cameras "
+              f"{metadata['rgb']}; mock={args.mock_policy}.", flush=True)
+        link.serve(infer, metadata, args.host, args.port)
         return 0
     except KeyboardInterrupt:
         return 130
