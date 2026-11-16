@@ -202,9 +202,13 @@ class DataConfigFactory(abc.ABC):
         return None
 
 
+# Rebot datasets, model weights and logs live in git-ignored directories of this repository.
+_REBOT_ROOT = str(pathlib.Path(__file__).resolve().parents[3])
+
+
 @dataclasses.dataclass(frozen=True)
 class RebotDataConfig(DataConfigFactory):
-    cache_dir: str = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/cache/rebot_post_train_h50"
+    cache_dir: str = f"{_REBOT_ROOT}/data/post_train_h50"
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -988,17 +992,16 @@ _CONFIGS = [
     *polaris_config.get_polaris_configs(),
 ]
 
-_REBOT_ROOT = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi"
 _REBOT_CONFIG = TrainConfig(
     name="pi05_rebot_post_train",
     model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
     data=RebotDataConfig(
         repo_id="BingqianWu/rebot-manipulation",
-        assets=AssetsConfig(assets_dir=f"{_REBOT_ROOT}/repo/assets/pi05_rebot_post_train", asset_id="rebot"),
+        assets=AssetsConfig(assets_dir=f"{_REBOT_ROOT}/assets/pi05_rebot_post_train", asset_id="rebot"),
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(f"{_REBOT_ROOT}/checkpoints/pi05_base/params"),
-    assets_base_dir=f"{_REBOT_ROOT}/repo/assets",
-    checkpoint_base_dir=f"{_REBOT_ROOT}/runs",
+    weight_loader=weight_loaders.CheckpointWeightLoader(f"{_REBOT_ROOT}/models/pi05_base/params"),
+    assets_base_dir=f"{_REBOT_ROOT}/assets",
+    checkpoint_base_dir=f"{_REBOT_ROOT}/models",
     batch_size=64,
     num_train_steps=20_000,
     num_workers=8,

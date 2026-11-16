@@ -3,11 +3,11 @@
 在本 openpi 仓库根目录执行：
 
 ```bash
-conda activate ../conda
+conda activate openpi_rebot
 python scripts/serve_rebot.py --port 8000
 ```
 
-服务只依赖 openpi。本地 checkpoint、缓存和模型配置均从本仓库所在的部署目录解析，不需要 rebot_control 的路径或 Python 模块。默认加载 `../checkpoints/pi05_rebot_post_train_20000`，采样 10 步；可以用 `--checkpoint` 和 `--num-steps` 覆盖。先完成合成观测预热，再进入 WebSocket 监听。运行时每次推理使用客户端提交的 prompt，预热文本不会作为默认任务指令。
+服务只依赖 openpi。本地 checkpoint、tokenizer 和模型配置均从本仓库目录解析，不需要 rebot_control 的路径或 Python 模块。默认加载 `models/pi05_rebot_post_train_20000`，采样 10 步；可以用 `--checkpoint` 和 `--num-steps` 覆盖。先完成合成观测预热，再进入 WebSocket 监听。运行时每次推理使用客户端提交的 prompt，预热文本不会作为默认任务指令。
 
 默认监听 `127.0.0.1:8000`。跨机器连接时显式指定 `--host 0.0.0.0`，客户端使用服务所在主机地址。
 
@@ -51,8 +51,9 @@ python rebot_policy.py --port 8001 --instruction hold --mock-cameras --duration 
 服务脚本导入 `rebot_policy_link`。它是 rebot_control 仓库 `policy_link/` 下的单文件纯 Python 包，在该仓库构建 wheel 后装进本环境：
 
 ```bash
-uv build /path/to/rebot_control/policy_link --wheel --out-dir ../wheels
-uv pip install --python ../conda/bin/python --no-deps ../wheels/rebot_policy_link-0.1.0-py3-none-any.whl
+conda activate openpi_rebot
+uv build /path/to/rebot_control/policy_link --wheel --out-dir /tmp/rebot_policy_link
+uv pip install --no-deps /tmp/rebot_policy_link/rebot_policy_link-0.1.0-py3-none-any.whl
 ```
 
 运行时两个仓库互不依赖对方目录，控制端不使用 `openpi-client`。适配层测试：`python -m pytest src/openpi/policies/rebot_policy_test.py`。

@@ -1,10 +1,18 @@
 # Rebot pi05 post-train
 
-The source dataset is the unchanged LeRobot v3 snapshot at
-`/inspire/hdd/global_user/czxs253130598/projects/real_projects/datasets/rebot-manipulation/packing`.
+Everything lives inside this repository; `data/`, `models/` and `logs/` are git-ignored:
+
+- `data/<task>`: unchanged LeRobot v3 snapshots from `BingqianWu/rebot-manipulation`
+  (`data/packing` is the source of the current preparation).
+- `data/post_train_h50`: prepared metadata and relative action chunks.
+- `models/pi05_base`: base weights; `models/big_vision`: PaliGemma tokenizer.
+- `models/<config>/<experiment>`: training checkpoints and metrics.
+- `logs/`: launcher logs, offline W&B and the JAX compilation cache.
+
+The Python environment is the conda environment `openpi_rebot`.
+
 The local adapter reads original videos using the pinned LeRobot PyAV reader;
-normal openpi image resizing and augmentation remain active. Prepared metadata,
-relative action chunks and normalization statistics live on shared storage.
+normal openpi image resizing and augmentation remain active.
 
 For each arm and observation t, target k is inv(T[t]) @ T[t+k+1], k=0..49.
 The source action[t] exactly equals state[t+1] inside all episodes; do not shift it twice.
@@ -41,7 +49,7 @@ EMA 0.99 and 50-step action horizon. FSDP groups contain two GPUs.
 - Keep the newest checkpoint for resume and every 5000-step checkpoint. Offline W&B
   logs and JSONL metrics are on shared storage.
 
-Launch through `/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/run_rebot.sh smoke|train`.
+Launch through `scripts/run_rebot.sh smoke|train`.
 Production requires a successful smoke marker matching both the code commit and data
 manifest hash. Production uses a fresh experiment initialized from pi05_base; it does
 not continue from the smoke experiment. The launcher always requests resume, so a
@@ -50,7 +58,7 @@ platform restart resumes the same production experiment instead of overwriting i
 ## Data loading optimization
 
 Production resumes with `scripts/run_rebot_optimized.sh`. It selects the tested
-worker count from `logs/rebot-loader-selection.json` in the shared openpi root.
+worker count from `logs/rebot-loader-selection.json`.
 Only CPU data-reading parallelism changes; model, action construction, optimizer,
 batch size and learning-rate schedule remain identical to the smoke-tested baseline.
 The optimized launcher verifies those core source files against that baseline and

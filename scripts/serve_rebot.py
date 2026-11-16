@@ -2,7 +2,6 @@
 """Serve the post-trained Rebot checkpoint from the openpi repository."""
 
 import argparse
-import dataclasses
 import logging
 import math
 import os
@@ -10,7 +9,6 @@ from pathlib import Path
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEPLOY_ROOT = REPO_ROOT.parent
 
 
 def warmup_observation():
@@ -34,11 +32,6 @@ def create_policy(args):
     if not (checkpoint / "params").is_dir() or not (checkpoint / "assets/rebot/norm_stats.json").is_file():
         raise ValueError("Checkpoint must contain params/ and assets/rebot/norm_stats.json.")
     cfg = config.get_config("pi05_rebot_post_train")
-    cfg = dataclasses.replace(
-        cfg, assets_base_dir=str(REPO_ROOT / "assets"),
-        data=dataclasses.replace(cfg.data, assets=dataclasses.replace(
-            cfg.data.assets, assets_dir=str(REPO_ROOT / "assets/pi05_rebot_post_train"))),
-    )
     return policy_config.create_trained_policy(
         cfg, checkpoint, sample_kwargs={"num_steps": args.num_steps})
 
@@ -48,7 +41,7 @@ def parser():
     cli.add_argument("--host", default="127.0.0.1", help="Listen address (default: loopback)")
     cli.add_argument("--port", type=int, default=8000)
     cli.add_argument("--checkpoint", type=Path,
-                     default=DEPLOY_ROOT / "checkpoints/pi05_rebot_post_train_20000")
+                     default=REPO_ROOT / "models/pi05_rebot_post_train_20000")
     cli.add_argument("--num-steps", type=int, default=10, help="Flow-matching sampling steps")
     cli.add_argument("--mock-policy", action="store_true", help="Serve a hold policy for simulation tests")
     cli.add_argument("--mock-latency", type=float, default=.08)
@@ -62,7 +55,7 @@ def main(argv=None):
             or not math.isfinite(args.mock_latency) or args.mock_latency < 0):
         cli.error("invalid port, sampling steps, or mock latency")
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
-    os.environ.setdefault("OPENPI_DATA_HOME", str(DEPLOY_ROOT / "cache/openpi"))
+    os.environ.setdefault("OPENPI_DATA_HOME", str(REPO_ROOT / "models"))
     sys.path[:0] = [str(REPO_ROOT / "src"), str(REPO_ROOT / "packages/openpi-client/src")]
     try:
         import rebot_policy_link as link
