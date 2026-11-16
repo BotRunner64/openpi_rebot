@@ -1,54 +1,60 @@
-"""CPU integration checks on the actual prepared dataset and policy transforms."""
+"""Check the prepared Rebot data through the real training transforms (CPU only).
+
+python scripts/check_rebot_data.py
+"""
 
 import json
-from pathlib import Path
-import time
 
 import numpy as np
 
 from openpi import transforms
-from openpi.training import config, data_loader
-from openpi.training.rebot_dataset import RebotDataset, absolute_actions
+from openpi.rebot.actions import absolute_actions
+from openpi.training import config
+from openpi.training import data_loader
 
 
-def main():
-    cfg = config.get_config("pi05_rebot_post_train")
-    dc = cfg.data.create(cfg.assets_dirs, cfg.model)
-    train = RebotDataset(dc.rebot_cache_dir, 50)
-    assert len(train) == train.manifest["rows"] - 50 * train.manifest["episodes"]
-    train._open()
-    assert len(train) == len(train._arrays["anchors"])
-    for j in np.random.default_rng(42).choice(len(train), 32, replace=False):
-        anchor = train._arrays["anchors"][j]
-        expected = train._arrays["states"][anchor + np.arange(1, 51)]
-        restored = absolute_actions(train._arrays["states"][anchor], train._arrays["actions"][j])
-        np.testing.assert_allclose(restored, expected, atol=2e-6)
-    start = time.monotonic()
-    raw = train[0]
-    decode_time = time.monotonic() - start
-    transformed = data_loader.transform_dataset(train, dc)[0]
-    assert transformed["actions"].shape == (50, 32)
-    assert transformed["state"].shape == (32,)
-    assert transformed["tokenized_prompt"].shape == (200,)
-    assert all(x.shape == (224, 224, 3) for x in transformed["image"].values())
-    assert np.isfinite(transformed["actions"]).all()
-    assert np.isfinite(transformed["state"]).all()
-    physical = transforms.Unnormalize(dc.norm_stats, use_quantiles=True)(
-        {"state": transformed["state"], "actions": transformed["actions"]}
+def main(config_name: str = "pi05_rebot_post_train", samples: int = 32):
+    cfg = config.get_config(config_name)
+    data_config = cfg.data.create(cfg.assets_dirs, cfg.model)
+    if data_config.norm_stats is None:
+        raise FileNotFoundError("Normalization statistics are missing; run scripts/prepare_rebot.py")
+    horizon = cfg.model.action_horizon
+    dataset = data_loader.create_torch_dataset(data_config, horizon, cfg.model)
+    arrays = dataset.arrays()
+    assert len(dataset) == len(arrays["anchors"]) == len(arrays["actions"]) == len(arrays["image_indices"])
+
+    # Stored chunks restore the exact future states.
+    picks = np.random.default_rng(0).choice(len(dataset), min(samples, len(dataset)), replace=False)
+    for i in picks:
+        anchor = arrays["anchors"][i]
+        future = arrays["states"][anchor + np.arange(1, horizon + 1)]
+        np.testing.assert_allclose(absolute_actions(arrays["states"][anchor], arrays["actions"][i]), future, atol=2e-6)
+
+    # One sample per task through decoding, model transforms and back to absolute targets.
+    transformed_dataset = data_loader.transform_dataset(dataset, data_config)
+    firsts = np.cumsum([0] + [source["chunks"] for source in dataset.manifest["sources"]])[:-1]
+    for i in firsts:
+        raw, sample = dataset[int(i)], transformed_dataset[int(i)]
+        assert sample["actions"].shape == (horizon, cfg.model.action_dim)
+        assert sample["state"].shape == (cfg.model.action_dim,)
+        assert all(image.shape == (224, 224, 3) for image in sample["image"].values())
+        assert np.isfinite(sample["actions"]).all() and np.isfinite(sample["state"]).all()
+        physical = transforms.Unnormalize(data_config.norm_stats, use_quantiles=True)(
+            {"state": sample["state"], "actions": sample["actions"]}
+        )
+        outputs = transforms.compose(data_config.data_transforms.outputs)(physical)
+        np.testing.assert_allclose(outputs["actions"], absolute_actions(raw["state"], raw["actions"]), atol=2e-6)
+
+    print(
+        json.dumps(
+            {"windows": len(dataset), "sources": dataset.manifest["sources"], "prompts": dataset.manifest["prompts"]},
+            indent=2,
+        )
     )
-    outputs = transforms.compose(dc.data_transforms.outputs)(physical)
-    np.testing.assert_allclose(outputs["actions"], absolute_actions(raw["state"], raw["actions"]), atol=2e-6)
-    result = {
-        "train_chunks": len(train),
-        "horizon": 50,
-        "episodes": train.manifest["episodes"],
-        "first_raw_decode_seconds": decode_time,
-        "all_checks_passed": True,
-    }
-    path = Path(dc.rebot_cache_dir).parent.parent / "logs/rebot-data-check.json"
-    path.write_text(json.dumps(result, indent=2))
-    print(json.dumps(result, indent=2))
+    print("REBOT DATA CHECK PASSED")
 
 
 if __name__ == "__main__":
-    main()
+    import tyro
+
+    tyro.cli(main)

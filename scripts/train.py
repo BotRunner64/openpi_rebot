@@ -1,7 +1,8 @@
 import dataclasses
 import functools
-import logging
 import json
+import logging
+import os
 import platform
 import time
 from typing import Any
@@ -201,8 +202,6 @@ def main(config: _config.TrainConfig):
         raise ValueError(
             f"Batch size {config.batch_size} must be divisible by the number of devices {jax.device_count()}."
         )
-
-    import os
 
     jax.config.update(
         "jax_compilation_cache_dir",

@@ -10,11 +10,14 @@ import io
 
 import numpy as np
 
+from openpi.rebot.actions import FPS
+from openpi.rebot.actions import STATE_DIM
+from openpi.rebot.dataset import CAMERAS as _DATASET_CAMERAS
+
 SIDES = ("left", "right")
 STATE_STREAMS = ("left_eef", "right_eef", "left_gripper", "right_gripper")
 # Recorded camera name -> model image key.
-CAMERAS = {"top": "base_0_rgb", "left_wrist": "left_wrist_0_rgb", "right_wrist": "right_wrist_0_rgb"}
-ACTION_HZ = 30
+CAMERAS = {key.removeprefix("observation.images."): image for key, image in _DATASET_CAMERAS.items()}
 
 
 def model_observation(observation):
@@ -41,9 +44,9 @@ def model_observation(observation):
 def action_reply(actions, timestamp_ns):
     """(H, 26) absolute future states -> state streams; row k is timestamp_ns + (k + 1) / 30 s."""
     actions = np.asarray(actions, dtype=np.float64)
-    if actions.ndim != 2 or actions.shape[1] != 26 or not np.all(np.isfinite(actions)):
+    if actions.ndim != 2 or actions.shape[1] != STATE_DIM or not np.all(np.isfinite(actions)):
         raise ValueError("Policy must return finite absolute EEF states with shape (H, 26).")
-    times = [timestamp_ns + (k + 1) * 1_000_000_000 // ACTION_HZ for k in range(len(actions))]
+    times = [timestamp_ns + (k + 1) * 1_000_000_000 // FPS for k in range(len(actions))]
     streams = {}
     for index, side in enumerate(SIDES):
         rows = actions[:, index * 13 : index * 13 + 13]

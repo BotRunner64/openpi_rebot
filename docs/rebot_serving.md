@@ -11,7 +11,7 @@ python scripts/serve_rebot.py --port 8000
 
 默认监听 `127.0.0.1:8000`。跨机器连接时显式指定 `--host 0.0.0.0`，客户端使用服务所在主机地址。
 
-通讯使用 rebot_control 仓库定义的策略无关协议 `rebot-policy-link/1`（WebSocket + 普通 MessagePack，协议说明见该仓库 `docs/policy_link.md`）。控制端发来的观测是采集格式的各路流：`state/left_eef` 等四路状态表和 `rgb/top` 等三路 JPEG；回复是这四路状态流的未来行。所有模型相关的转换都在 `src/openpi/policies/rebot_policy.py`：
+通讯使用 rebot_control 仓库定义的策略无关协议 `rebot-policy-link/1`（WebSocket + 普通 MessagePack，协议说明见该仓库 `docs/policy_link.md`）。控制端发来的观测是采集格式的各路流：`state/left_eef` 等四路状态表和 `rgb/top` 等三路 JPEG；回复是这四路状态流的未来行。所有模型相关的转换都在 `src/openpi/rebot/link.py`：
 
 - 相机名 `top`、`left_wrist`、`right_wrist` 映射到 `base_0_rgb`、`left_wrist_0_rgb`、`right_wrist_0_rgb`，JPEG 解码后按原分辨率交给模型变换缩放到 224。
 - 每路流取最后一行，按左臂后右臂拼成 26 维 state（每臂 xyz + 列优先 R9 + openness）。
@@ -56,4 +56,4 @@ uv build /path/to/rebot_control/policy_link --wheel --out-dir /tmp/rebot_policy_
 uv pip install --no-deps /tmp/rebot_policy_link/rebot_policy_link-0.1.0-py3-none-any.whl
 ```
 
-运行时两个仓库互不依赖对方目录，控制端不使用 `openpi-client`。适配层测试：`python -m pytest src/openpi/policies/rebot_policy_test.py`。
+运行时两个仓库互不依赖对方目录，控制端不使用 `openpi-client`。适配层测试：`python -m pytest src/openpi/rebot/link_test.py`。

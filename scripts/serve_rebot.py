@@ -31,9 +31,9 @@ def create_policy(args):
     checkpoint = args.checkpoint.expanduser().resolve()
     if not (checkpoint / "params").is_dir() or not (checkpoint / "assets/rebot/norm_stats.json").is_file():
         raise ValueError("Checkpoint must contain params/ and assets/rebot/norm_stats.json.")
-    cfg = config.get_config("pi05_rebot_post_train")
+    # Normalization statistics are read from the checkpoint, not from prepared training data.
     return policy_config.create_trained_policy(
-        cfg, checkpoint, sample_kwargs={"num_steps": args.num_steps})
+        config.get_config("pi05_rebot_post_train"), checkpoint, sample_kwargs={"num_steps": args.num_steps})
 
 
 def parser():
@@ -66,15 +66,15 @@ def main(argv=None):
         else:
             import numpy as np
 
-            from openpi.policies import rebot_policy
+            from openpi.rebot import link as rebot_link
 
             print("Loading policy and compiling a warmup inference before listening...", flush=True)
             policy = create_policy(args)
             actions = np.asarray(policy.infer(warmup_observation())["actions"])
             if actions.shape != (50, 26) or not np.all(np.isfinite(actions)):
                 raise ValueError("Policy must return finite absolute EEF states with shape (50, 26).")
-            infer = rebot_policy.RebotLinkPolicy(policy)
-            cameras = rebot_policy.CAMERAS
+            infer = rebot_link.RebotLinkPolicy(policy)
+            cameras = rebot_link.CAMERAS
         metadata = link.metadata(link.REBOT_STATE, cameras, mock=args.mock_policy, num_steps=args.num_steps)
         print(f"Policy ready: ws://{args.host}:{args.port}; rebot-policy-link; cameras "
               f"{metadata['rgb']}; mock={args.mock_policy}.", flush=True)

@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 import pytest
 
-from openpi.policies import rebot_policy
+from openpi.rebot import link
 
 T0 = 5_000_000_000
 
@@ -45,7 +45,7 @@ def _observation():
 
 
 def test_streams_become_the_training_observation_layout():
-    result = rebot_policy.model_observation(_observation())
+    result = link.model_observation(_observation())
     np.testing.assert_allclose(result["state"], np.concatenate([_state(1.0), _state(2.0)]), rtol=1e-6)
     assert result["state"].dtype == np.float32
     assert result["prompt"] == "pack the box"
@@ -62,8 +62,8 @@ def test_actions_become_future_rows_of_the_state_streams():
         def infer(self, observation):
             return {"actions": np.repeat(observation["state"][None], 50, axis=0)}
 
-    reply = rebot_policy.RebotLinkPolicy(Hold())(_observation())
-    assert set(reply["state"]) == set(rebot_policy.STATE_STREAMS)
+    reply = link.RebotLinkPolicy(Hold())(_observation())
+    assert set(reply["state"]) == set(link.STATE_STREAMS)
     times = reply["state"]["right_eef"]["timestamp_ns"]
     assert len(times) == 50
     assert times[0] == T0 + 33_333_333
@@ -76,4 +76,4 @@ def test_actions_become_future_rows_of_the_state_streams():
 def test_bad_model_output_is_rejected():
     for actions in (np.zeros((50, 20)), np.full((50, 26), np.nan)):
         with pytest.raises(ValueError, match="26"):
-            rebot_policy.action_reply(actions, T0)
+            link.action_reply(actions, T0)

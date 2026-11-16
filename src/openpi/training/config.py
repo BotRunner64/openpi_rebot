@@ -20,6 +20,8 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.rebot as rebot
+import openpi.rebot.actions as rebot_actions
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -65,8 +67,8 @@ class AssetsConfig:
 class DataConfig:
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
-    # Prepared local Rebot v3 metadata/chunks; videos remain read on demand.
-    rebot_cache_dir: str | None = None
+    # Directory written by scripts/prepare_rebot.py. If set, the data is read by RebotDataset.
+    rebot_prepared_dir: str | None = None
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
@@ -202,22 +204,20 @@ class DataConfigFactory(abc.ABC):
         return None
 
 
-# Rebot datasets, model weights and logs live in git-ignored directories of this repository.
-_REBOT_ROOT = str(pathlib.Path(__file__).resolve().parents[3])
-
-
 @dataclasses.dataclass(frozen=True)
 class RebotDataConfig(DataConfigFactory):
-    cache_dir: str = f"{_REBOT_ROOT}/data/post_train_h50"
+    """Prepared Rebot data; normalization statistics are stored next to the arrays."""
+
+    repo_id: str = "rebot"
+    prepared_dir: str = str(rebot.DATA_DIR / "post_train_h50")
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        from openpi.training.rebot_dataset import RebotOutputs
-
+        factory = dataclasses.replace(self, assets=AssetsConfig(assets_dir=self.prepared_dir, asset_id="rebot"))
         return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
-            rebot_cache_dir=self.cache_dir,
-            data_transforms=_transforms.Group(outputs=[RebotOutputs()]),
+            factory.create_base_config(assets_dirs, model_config),
+            rebot_prepared_dir=self.prepared_dir,
+            data_transforms=_transforms.Group(outputs=[rebot_actions.RebotOutputs()]),
             model_transforms=ModelTransformFactory()(model_config),
         )
 
@@ -992,19 +992,17 @@ _CONFIGS = [
     *polaris_config.get_polaris_configs(),
 ]
 
+# Rebot: full fine-tuning of pi05_base on every prepared episode. Sized for one 8-GPU node.
 _REBOT_CONFIG = TrainConfig(
     name="pi05_rebot_post_train",
     model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
-    data=RebotDataConfig(
-        repo_id="BingqianWu/rebot-manipulation",
-        assets=AssetsConfig(assets_dir=f"{_REBOT_ROOT}/assets/pi05_rebot_post_train", asset_id="rebot"),
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(f"{_REBOT_ROOT}/models/pi05_base/params"),
-    assets_base_dir=f"{_REBOT_ROOT}/assets",
-    checkpoint_base_dir=f"{_REBOT_ROOT}/models",
+    data=RebotDataConfig(),
+    weight_loader=weight_loaders.CheckpointWeightLoader(str(rebot.MODELS_DIR / "pi05_base/params")),
+    checkpoint_base_dir=str(rebot.MODELS_DIR),
     batch_size=64,
     num_train_steps=20_000,
-    num_workers=8,
+    # Decoding video is the bottleneck: 32 workers measured 244 samples/s, training needs about 130.
+    num_workers=32,
     fsdp_devices=2,
     log_interval=10,
     save_interval=1000,
@@ -1014,6 +1012,7 @@ _REBOT_CONFIG = TrainConfig(
 _CONFIGS.extend(
     [
         _REBOT_CONFIG,
+        # Two GPUs, a few minutes: checks data, training and checkpointing end to end.
         dataclasses.replace(
             _REBOT_CONFIG,
             name="pi05_rebot_post_train_smoke",
