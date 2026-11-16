@@ -9,6 +9,9 @@ Everything lives inside this repository; `data/`, `models/` and `logs/` are git-
 - `models/<config>/<experiment>`: training checkpoints and metrics.
 - `logs/`: launcher logs, offline W&B and the JAX compilation cache.
 
+On the Inspire cluster `data/<task>` and `models` are symlinks into the project storage
+(`public/dataset/rebot/<task>` and `public/model`); `data/post_train_h50` stays in the checkout.
+
 The Python environment is the conda environment `openpi_rebot`.
 
 The local adapter reads original videos using the pinned LeRobot PyAV reader;

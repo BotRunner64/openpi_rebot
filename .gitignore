@@ -2,7 +2,7 @@
 assets/
 checkpoints/
 data/
-models/
+models
 logs/
 wandb/
 
