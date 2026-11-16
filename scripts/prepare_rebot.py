@@ -97,7 +97,6 @@ def main(
     assets: str,
     horizon: int = 50,
     workers: int = 8,
-    seed: int = 42,
     cache_images: bool = False,
 ):
     source, output = Path(source), Path(output)
@@ -126,10 +125,6 @@ def main(
         rotation = states[:, offset + 3 : offset + 12].reshape(-1, 3, 3).swapaxes(-1, -2)
         assert np.max(abs(rotation.swapaxes(-1, -2) @ rotation - np.eye(3))) < 1e-4
         assert np.allclose(np.linalg.det(rotation), 1, atol=1e-4)
-    rng = np.random.default_rng(seed)
-    ids = np.array(sorted(set(episode_ids)))
-    val_ids = np.sort(rng.permutation(ids)[: max(1, int(np.ceil(len(ids) * 0.1)))])
-    train_ids = np.setdiff1d(ids, val_ids)
     video_paths = sorted(str(p.relative_to(source)) for p in (source / "videos").rglob("*.mp4"))
     videos = [{"source": p, "cache": f"videos/{i:03d}.npy"} for i, p in enumerate(video_paths)]
     video_id = {p: i for i, p in enumerate(video_paths)}
@@ -170,21 +165,17 @@ def main(
         future = states[a[:, None] + np.arange(1, horizon + 1)]
         chunks[start : start + len(a)] = relative_actions(states[a], future)
     chunks.flush()
-    train_indices = np.flatnonzero(np.isin(episode_ids[anchors], train_ids))
-    val_indices = np.flatnonzero(np.isin(episode_ids[anchors], val_ids))
     for name, value in {
         "states": states,
         "anchors": anchors,
         "image_indices": image_indices,
         "task_indices": task_ids[anchors],
-        "train_indices": train_indices,
-        "val_indices": val_indices,
     }.items():
         np.save(output / f"{name}.npy", value)
-    print(f"Computing train-only normalization on {len(train_indices)} chunks", flush=True)
+    print(f"Computing normalization on {len(anchors)} chunks", flush=True)
     norm_stats = {
-        "state": stats(states[np.isin(episode_ids, train_ids)], np.r_[3:12, 16:25]),
-        "actions": stats(np.asarray(chunks[train_indices]), np.r_[3:9, 13:19]),
+        "state": stats(states, np.r_[3:12, 16:25]),
+        "actions": stats(np.asarray(chunks), np.r_[3:9, 13:19]),
     }
     normalize.save(Path(assets), norm_stats)
     task_rows = pq.read_table(source / "meta/tasks.parquet").to_pylist()
@@ -195,18 +186,14 @@ def main(
         "source_info_sha256": hashlib.sha256((source / "meta/info.json").read_bytes()).hexdigest(),
         "horizon": horizon,
         "fps": info["fps"],
-        "seed": seed,
         "rows": len(states),
         "chunks": len(anchors),
-        "train_episodes": train_ids.tolist(),
-        "val_episodes": val_ids.tolist(),
-        "train_chunks": len(train_indices),
-        "val_chunks": len(val_indices),
+        "episodes": len(episodes),
         "videos": videos,
         "tasks": tasks,
         "action_representation": "inv(T_observed) @ T_future; column rot6d; absolute gripper",
         "state_representation": "absolute xyz + column-major R9 + absolute gripper, left then right",
-        "normalization": "train-only q01/q99; rotation identity normalization",
+        "normalization": "q01/q99 over all episodes; rotation identity normalization",
         "assets": str(assets),
         "cache_images": cache_images,
     }

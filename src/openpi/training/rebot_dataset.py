@@ -69,17 +69,15 @@ class RebotOutputs:
 class RebotDataset:
     """Read prepared uint8 images and exact, episode-bounded action chunks."""
 
-    def __init__(self, cache_dir, horizon, split="train"):
+    def __init__(self, cache_dir, horizon):
         self.root = Path(cache_dir)
         self.manifest = json.loads((self.root / "manifest.json").read_text())
         if self.manifest["horizon"] != horizon:
             raise ValueError("Prepared action horizon differs from model configuration")
-        self.split = split
         self._arrays = None
         self._videos = {}
-        self.indices = np.load(self.root / f"{split}_indices.npy")
-        if not len(self.indices):
-            raise ValueError(f"Empty {split} split")
+        if not self.manifest["chunks"]:
+            raise ValueError("Prepared dataset has no action chunks")
 
     def _open(self):
         if self._arrays is None:
@@ -92,11 +90,11 @@ class RebotDataset:
         return {**self.__dict__, "_arrays": None, "_videos": {}}
 
     def __len__(self):
-        return len(self.indices)
+        return self.manifest["chunks"]
 
     def __getitem__(self, index):
         self._open()
-        i = int(self.indices[index])
+        i = int(index)
         images = {}
         for camera, (video, frame) in zip(MODEL_CAMERAS, self._arrays["image_indices"][i], strict=True):
             video = int(video)

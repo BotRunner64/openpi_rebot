@@ -139,7 +139,7 @@ def create_torch_dataset(
     if data_config.rebot_cache_dir is not None:
         from openpi.training.rebot_dataset import RebotDataset
 
-        return RebotDataset(data_config.rebot_cache_dir, action_horizon, data_config.rebot_split)
+        return RebotDataset(data_config.rebot_cache_dir, action_horizon)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
     dataset = lerobot_dataset.LeRobotDataset(

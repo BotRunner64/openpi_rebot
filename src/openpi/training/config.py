@@ -67,7 +67,6 @@ class DataConfig:
     repo_id: str | None = None
     # Prepared local Rebot v3 metadata/chunks; videos remain read on demand.
     rebot_cache_dir: str | None = None
-    rebot_split: Literal["train", "val"] = "train"
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
@@ -206,7 +205,6 @@ class DataConfigFactory(abc.ABC):
 @dataclasses.dataclass(frozen=True)
 class RebotDataConfig(DataConfigFactory):
     cache_dir: str = "/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/cache/rebot_post_train_h50"
-    split: Literal["train", "val"] = "train"
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -215,7 +213,6 @@ class RebotDataConfig(DataConfigFactory):
         return dataclasses.replace(
             self.create_base_config(assets_dirs, model_config),
             rebot_cache_dir=self.cache_dir,
-            rebot_split=self.split,
             data_transforms=_transforms.Group(outputs=[RebotOutputs()]),
             model_transforms=ModelTransformFactory()(model_config),
         )
@@ -530,9 +527,6 @@ class TrainConfig:
     num_workers: int = 2
     # Number of train steps (batches) to run.
     num_train_steps: int = 30_000
-    # Optional deterministic validation for a dataset factory exposing a split.
-    validation_interval: int = 0
-    validation_batches: int = 4
 
     # How often (in steps) to log training metrics.
     log_interval: int = 100
@@ -1012,8 +1006,6 @@ _REBOT_CONFIG = TrainConfig(
     log_interval=10,
     save_interval=1000,
     keep_period=5000,
-    validation_interval=1000,
-    validation_batches=4,
     policy_metadata={"action_representation": "relative_next_state", "control_frequency": 30},
 )
 _CONFIGS.extend(
@@ -1028,8 +1020,6 @@ _CONFIGS.extend(
             log_interval=1,
             save_interval=25,
             keep_period=25,
-            validation_interval=25,
-            validation_batches=2,
         ),
     ]
 )

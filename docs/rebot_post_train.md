@@ -4,7 +4,7 @@ The source dataset is the unchanged LeRobot v3 snapshot at
 `/inspire/hdd/global_user/czxs253130598/projects/real_projects/datasets/rebot-manipulation/packing`.
 The local adapter reads original videos using the pinned LeRobot PyAV reader;
 normal openpi image resizing and augmentation remain active. Prepared metadata,
-relative action chunks and train-only statistics live on shared storage.
+relative action chunks and normalization statistics live on shared storage.
 
 For each arm and observation t, target k is inv(T[t]) @ T[t+k+1], k=0..49.
 The source action[t] exactly equals state[t+1] inside all episodes; do not shift it twice.
@@ -15,11 +15,9 @@ Source rotations use column-major R9 order. Policy output transforms undo
 normalization and the relative transform, returning absolute 26D target states.
 
 Windows use stride one and require 50 real future states within the same episode.
-No terminal padding or cross-episode labels are used. Seed 42 selects six complete
-episodes for validation (7,17,27,37,40,53); the other 48 are training episodes.
-There are 100888 training and 14946 validation windows. Position/gripper normalization
-uses training-only q01/q99; rotations retain identity normalization. Statistics include
-all future targets of training windows, never validation windows.
+No terminal padding or cross-episode labels are used. Every episode is used for
+training; there is no validation split. Position/gripper normalization uses q01/q99
+over all episodes, including all future targets; rotations retain identity normalization.
 
 ## Checks and preparation
 
@@ -36,13 +34,12 @@ Both stages use local pi05_base weights, JAX full fine-tuning, bfloat16 compute,
 no frozen parameters, AdamW, peak LR 2.5e-5, 1000-step warmup, standard cosine schedule,
 EMA 0.99 and 50-step action horizon. FSDP groups contain two GPUs.
 
-- Two-GPU smoke: global batch 16, 50 steps, checkpoint/evaluation at 25 and 50;
+- Two-GPU smoke: global batch 16, 50 steps, checkpoints at 25 and 50;
   restore the same optimizer/training state and run to step 55.
-- Eight-GPU production: one node, global batch 64, 20000 steps; evaluate/checkpoint
-  every 1000 steps using four fixed validation batches. Evaluation uses EMA and a
-  fixed noise seed for comparable validation losses.
-- Keep the newest checkpoint for resume, the best two validation checkpoints, and
-  every 5000-step checkpoint. Offline W&B logs and JSONL metrics are on shared storage.
+- Eight-GPU production: one node, global batch 64, 20000 steps; checkpoint every
+  1000 steps.
+- Keep the newest checkpoint for resume and every 5000-step checkpoint. Offline W&B
+  logs and JSONL metrics are on shared storage.
 
 Launch through `/inspire/hdd/global_user/czxs253130598/projects/real_projects/openpi/run_rebot.sh smoke|train`.
 Production requires a successful smoke marker matching both the code commit and data

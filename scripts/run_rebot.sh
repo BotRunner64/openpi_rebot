@@ -31,14 +31,12 @@ if [ "$stage" = smoke ]; then
 import json,pathlib,sys,subprocess,hashlib,numpy as np
 base=pathlib.Path(sys.argv[1]);run=base/'runs/pi05_rebot_post_train_smoke/smoke_20261113'
 metrics=[json.loads(line) for line in (run/'training_metrics.jsonl').read_text().splitlines()]
-validation=[json.loads(line) for line in (run/'validation_metrics.jsonl').read_text().splitlines()]
 assert metrics[-1]['step']==55, metrics[-1]
 assert all(np.isfinite(r['loss']) and np.isfinite(r['grad_norm']) and r['grad_norm']>0 for r in metrics)
-assert all(np.isfinite(r['validation_loss']) for r in validation)
 assert (run/'50').is_dir() and (run/'55').is_dir()
 result={'passed':True,'code_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'manifest_sha256':hashlib.sha256((base/'cache/rebot_post_train_h50/manifest.json').read_bytes()).hexdigest(),'completed_step':55,'checkpoint_resume_verified':True,
         'first_loss':metrics[0]['loss'],'last_loss':metrics[-1]['loss'],
-        'last_validation':validation[-1], 'last_seconds_per_step':metrics[-1]['seconds_per_step']}
+        'last_seconds_per_step':metrics[-1]['seconds_per_step']}
 (base/'logs/rebot-smoke-passed.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
 PY
 elif [ "$stage" = train ]; then

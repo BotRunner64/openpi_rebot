@@ -221,7 +221,6 @@ def main(config: _config.TrainConfig):
         keep_period=config.keep_period,
         overwrite=config.overwrite,
         resume=config.resume,
-        track_best=config.validation_interval > 0,
     )
     init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)
 
@@ -248,21 +247,6 @@ def main(config: _config.TrainConfig):
     if resuming:
         train_state = _checkpoints.restore_state(checkpoint_manager, train_state, data_loader)
 
-    validation = []
-    if config.validation_interval:
-        if not hasattr(config.data, "split"):
-            raise ValueError("Validation requires a dataset factory with a split field")
-        val_config = dataclasses.replace(config, data=dataclasses.replace(config.data, split="val"))
-        val_iter = iter(_data_loader.create_data_loader(val_config, sharding=data_sharding, shuffle=False))
-        validation = [next(val_iter) for _ in range(config.validation_batches)]
-
-    def evaluate(state, key, val_batch):
-        model = nnx.merge(state.model_def, state.ema_params if state.ema_params is not None else state.params)
-        model.eval()
-        return jnp.mean(model.compute_loss(key, *val_batch, train=False))
-
-    pevaluate = jax.jit(evaluate, in_shardings=(train_state_sharding, replicated_sharding, data_sharding))
-
     ptrain_step = jax.jit(
         functools.partial(train_step, config),
         in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
@@ -281,7 +265,6 @@ def main(config: _config.TrainConfig):
     infos = []
     last_log_time = time.monotonic()
     last_log_step = start_step
-    last_validation_loss = None
     for step in pbar:
         with sharding.set_mesh(mesh):
             train_state, info = ptrain_step(train_rng, train_state, batch)
@@ -304,23 +287,8 @@ def main(config: _config.TrainConfig):
                 )
             infos = []
 
-        if validation and (completed % config.validation_interval == 0 or completed == config.num_train_steps):
-            with sharding.set_mesh(mesh):
-                losses = [
-                    float(pevaluate(train_state, jax.random.fold_in(jax.random.key(0), i), vb))
-                    for i, vb in enumerate(validation)
-                ]
-            last_validation_loss = float(np.mean(losses))
-            if not np.isfinite(last_validation_loss):
-                raise FloatingPointError("Nonfinite validation loss")
-            pbar.write(f"Step {completed}: validation_loss={last_validation_loss:.6f}")
-            wandb.log({"validation_loss": last_validation_loss}, step=completed)
-            with (config.checkpoint_dir / "validation_metrics.jsonl").open("a") as metrics_file:
-                metrics_file.write(json.dumps({"step": completed, "validation_loss": last_validation_loss}) + "\n")
-
         if completed % config.save_interval == 0 or completed == config.num_train_steps:
-            metrics = {"validation_loss": last_validation_loss} if validation else None
-            _checkpoints.save_state(checkpoint_manager, train_state, data_loader, completed, metrics=metrics)
+            _checkpoints.save_state(checkpoint_manager, train_state, data_loader, completed)
         if completed < config.num_train_steps:
             batch = next(data_iter)
 

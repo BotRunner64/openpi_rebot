@@ -18,12 +18,7 @@ import openpi.training.utils as training_utils
 
 
 def initialize_checkpoint_dir(
-    checkpoint_dir: epath.Path | str,
-    *,
-    keep_period: int | None,
-    overwrite: bool,
-    resume: bool,
-    track_best: bool = False,
+    checkpoint_dir: epath.Path | str, *, keep_period: int | None, overwrite: bool, resume: bool
 ) -> tuple[ocp.CheckpointManager, bool]:
     checkpoint_dir = epath.Path(checkpoint_dir).resolve()
     resuming = False
@@ -41,7 +36,6 @@ def initialize_checkpoint_dir(
             )
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    latest_marker = checkpoint_dir / "latest_requested_step"
 
     mngr = ocp.CheckpointManager(
         checkpoint_dir,
@@ -51,12 +45,7 @@ def initialize_checkpoint_dir(
             "params": ocp.PyTreeCheckpointHandler(),
         },
         options=ocp.CheckpointManagerOptions(
-            max_to_keep=2 if track_best else 1,
-            best_fn=(lambda metrics: metrics["validation_loss"]) if track_best else None,
-            best_mode="min",
-            should_keep_fn=(lambda step: latest_marker.exists() and latest_marker.read_text().strip() == str(step))
-            if track_best
-            else None,
+            max_to_keep=1,
             keep_period=keep_period,
             create=False,
             async_options=ocp.AsyncOptions(timeout_secs=7200),
@@ -78,7 +67,6 @@ def save_state(
     state: training_utils.TrainState,
     data_loader: _data_loader.DataLoader,
     step: int,
-    metrics: dict | None = None,
 ):
     def save_assets(directory: epath.Path):
         # Save the normalization stats.
@@ -95,12 +83,7 @@ def save_state(
         "train_state": train_state,
         "params": {"params": params},
     }
-    if metrics is not None:
-        # Keep the newest resumable state even when it is not one of the best
-        # validation checkpoints. Finish prior pruning before advancing this.
-        checkpoint_manager.wait_until_finished()
-        (checkpoint_manager.directory / "latest_requested_step").write_text(str(step))
-    checkpoint_manager.save(step, items, metrics=metrics)
+    checkpoint_manager.save(step, items)
 
 
 def restore_state(
