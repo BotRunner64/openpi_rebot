@@ -47,12 +47,15 @@ scripts/train_rebot.sh <实验名>
 | 项 | 值 |
 |---|---|
 | 模型 | π₀.₅，action horizon 50，bfloat16，不冻结参数 |
+| Training-time RTC | 每个样本均匀采样 0 到 6 步的已知动作前缀（30 Hz 下最多 200 ms），仅对后续动作计算平均损失 |
 | 优化 | AdamW，峰值学习率 2.5e-5，1000 步 warmup，cosine，EMA 0.99 |
 | 批量 | 全局 64，FSDP 每组 2 张 GPU |
 | 步数 | 20000，每 1000 步存一次；保留最新一个和每 5000 步一个 |
 | 数据读取 | 32 个 worker |
 
 `pi05_rebot_post_train_smoke` 是同一配置的缩小版（batch 16、50 步、第 25 和 50 步存 checkpoint）。
+
+启动新实验可运行 `scripts/train_rebot.sh packing_unscrew_rtc`。通过 `--model.rtc-max-delay` 调整最大前缀步数，设为 0 即恢复普通 flow matching。JAX 模型的 `sample_actions(action_prefix=...)` 接受按当前观测坐标系编码、已归一化并补齐至模型动作维度的前缀。现有 WebSocket 客户端仍以空前缀推理。
 
 读取视频是瓶颈。在训练节点上实测 8 / 16 / 24 / 32 个 worker 分别为 67 / 130 / 168 / 244 样本每秒，而 8 张 H200 约 0.5 秒一步，需要约 130 样本每秒。
 

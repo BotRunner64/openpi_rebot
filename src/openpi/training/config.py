@@ -995,7 +995,7 @@ _CONFIGS = [
 # Rebot: full fine-tuning of pi05_base on every prepared episode. Sized for one 8-GPU node.
 _REBOT_CONFIG = TrainConfig(
     name="pi05_rebot_post_train",
-    model=pi0_config.Pi0Config(pi05=True, action_horizon=50),
+    model=pi0_config.Pi0Config(pi05=True, action_horizon=50, rtc_max_delay=6),
     data=RebotDataConfig(),
     weight_loader=weight_loaders.CheckpointWeightLoader(str(rebot.MODELS_DIR / "pi05_base/params")),
     checkpoint_base_dir=str(rebot.MODELS_DIR),

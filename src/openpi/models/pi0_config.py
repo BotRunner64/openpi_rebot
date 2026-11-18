@@ -34,7 +34,14 @@ class Pi0Config(_model.BaseModelConfig):
 
     pytorch_compile_mode: str | None = "max-autotune"
 
+    # Inclusive maximum number of known action steps during JAX pi05 training.
+    rtc_max_delay: int = 0
+
     def __post_init__(self):
+        if not 0 <= self.rtc_max_delay < self.action_horizon:
+            raise ValueError("rtc_max_delay must be in [0, action_horizon)")
+        if self.rtc_max_delay and not self.pi05:
+            raise ValueError("Training-time RTC requires pi05")
         if self.max_token_len is None:
             object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
         if self.discrete_state_input is None:

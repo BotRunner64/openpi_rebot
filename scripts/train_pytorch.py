@@ -307,6 +307,8 @@ def log_memory_usage(device, step, phase="unknown"):
 
 
 def train_loop(config: _config.TrainConfig):
+    if getattr(config.model, "rtc_max_delay", 0):
+        raise ValueError("Training-time RTC requires the JAX trainer scripts/train.py")
     use_ddp, local_rank, device = setup_ddp()
     is_main = (not use_ddp) or (dist.get_rank() == 0)
     set_seed(config.seed, local_rank)

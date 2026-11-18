@@ -4,12 +4,12 @@
 
 ## 相对上游的修改
 
-Rebot 相关代码集中在两处，其余保持上游原样：
+Rebot 数据处理和部署入口如下。
 
 - `src/openpi/rebot/`：动作表示（`actions.py`）、训练数据集（`dataset.py`）、推理服务的协议适配（`link.py`）。
 - `scripts/`：`prepare_rebot.py` 数据准备、`check_rebot_data.py` 数据检查、`train_rebot.sh` 训练启动、`serve_rebot.py` 推理服务。
 
-对上游文件的改动只有三处：`training/config.py` 注册 `pi05_rebot_post_train` 配置，`training/data_loader.py` 接入 Rebot 数据集，`scripts/train.py` 增加指标落盘（`training_metrics.jsonl`）并让步数从 1 计。
+`training/config.py` 注册 `pi05_rebot_post_train` 配置，`training/data_loader.py` 接入 Rebot 数据集，`scripts/train.py` 增加指标落盘（`training_metrics.jsonl`）并让步数从 1 计。JAX π₀.₅ 在 Rebot 后训练中默认启用 training-time RTC，按已知动作前缀预测后续动作。
 
 ## 文档
 
