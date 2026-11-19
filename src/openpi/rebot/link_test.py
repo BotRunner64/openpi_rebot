@@ -77,3 +77,26 @@ def test_bad_model_output_is_rejected():
     for actions in (np.zeros((50, 20)), np.full((50, 26), np.nan)):
         with pytest.raises(ValueError, match="26"):
             link.action_reply(actions, T0)
+
+
+def test_rtc_prefix_is_relative_to_the_current_observation():
+    from openpi.rebot.actions import absolute_actions
+
+    obs = _observation()
+    targets = np.tile(np.concatenate([_state(1.), _state(2.)]), (3, 1))
+    targets[:, 0] += [0.01, 0.02, 0.03]
+    targets[:, 12] = [.3, .4, .5]
+    obs["action_prefix"] = link.action_reply(targets, T0)
+
+    class Conditioned:
+        def infer(self, inputs, *, action_prefix):
+            assert action_prefix.shape == (3, 20)
+            reconstructed = absolute_actions(inputs["state"], action_prefix)
+            np.testing.assert_allclose(reconstructed, targets, atol=1e-6)
+            return {"actions": reconstructed}
+
+    adapter = link.RebotLinkPolicy(Conditioned(), prefix_steps=3)
+    adapter(obs)
+    obs["action_prefix"]["state"]["left_eef"]["timestamp_ns"][0] += 1
+    with pytest.raises(ValueError, match="time grid"):
+        adapter(obs)

@@ -7,11 +7,11 @@ conda activate openpi_rebot
 python scripts/serve_rebot.py --port 8000
 ```
 
-服务只依赖 openpi。本地 checkpoint、tokenizer 和模型配置均从本仓库目录解析，不需要 rebot_control 的路径或 Python 模块。默认加载 `models/pi05_rebot_post_train_20000`，采样 10 步；可以用 `--checkpoint` 和 `--num-steps` 覆盖。先完成合成观测预热，再进入 WebSocket 监听。运行时每次推理使用客户端提交的 prompt，预热文本不会作为默认任务指令。
+服务只依赖 openpi。本地 checkpoint、tokenizer 和模型配置均从本仓库目录解析，不需要 rebot_control 的路径或 Python 模块。默认加载 `models/pi05_rebot_unscrew_rtc_20000`，采样 10 步。可以用 `--checkpoint` 和 `--num-steps` 覆盖。默认 RTC 前缀为 3 步（30 Hz 下 100 ms），前缀长度可设为 0 到 6，例如 `--rtc-prefix-steps 3`。指定其他 checkpoint 时默认 0 步，使用另一份 RTC 权重时可显式指定前缀长度。服务先完成空前缀及所选长度的合成观测预热，再进入 WebSocket 监听。运行时每次推理使用客户端提交的 prompt，预热文本不会作为默认任务指令。
 
 默认监听 `127.0.0.1:8000`。跨机器连接时显式指定 `--host 0.0.0.0`，客户端使用服务所在主机地址。
 
-通讯使用 rebot_control 仓库定义的策略无关协议 `rebot-policy-link/1`（WebSocket + 普通 MessagePack，协议说明见该仓库 `docs/policy_link.md`）。控制端发来的观测是采集格式的各路流：`state/left_eef` 等四路状态表和 `rgb/top` 等三路 JPEG；回复是这四路状态流的未来行。所有模型相关的转换都在 `src/openpi/rebot/link.py`：
+通讯使用 rebot_control 仓库定义的策略无关协议 `rebot-policy-link/1`（WebSocket + 普通 MessagePack，协议说明见该仓库 `docs/policy-link.md`）。控制端发来的观测是采集格式的各路流：`state/left_eef` 等四路状态表和 `rgb/top` 等三路 JPEG；回复是这四路状态流的未来行。所有模型相关的转换都在 `src/openpi/rebot/link.py`：
 
 - 相机名 `top`、`left_wrist`、`right_wrist` 映射到 `base_0_rgb`、`left_wrist_0_rgb`、`right_wrist_0_rgb`，JPEG 解码后按原分辨率交给模型变换缩放到 224。
 - 每路流取最后一行，按左臂后右臂拼成 26 维 state（每臂 xyz + 列优先 R9 + openness）。
@@ -23,8 +23,8 @@ python scripts/serve_rebot.py --port 8000
 
 ```bash
 conda activate rebot_control
-python rebot_policy.py --port 8000 \
-  --instruction "YOUR_TRAINING_INSTRUCTION" --hardware \
+rebot policy --port 8000 \
+  --instruction "Unscrew the bottle cap" \
   --camera top=/dev/video4 \
   --camera left_wrist=/dev/video0 \
   --camera right_wrist=/dev/video2
@@ -32,19 +32,9 @@ python rebot_policy.py --port 8000 \
 
 instruction 替换为训练任务原文，相机编号按实际设备映射。控制端负责相机、实测 FK、异步 action chunk 调度、IK 和电机；本服务只接收观测并返回模型输出。
 
-无模型/硬件的传输验证，在本仓库运行：
+首次请求用空前缀。后续控制端发送当前动作块中已承诺的绝对目标，服务用当前观测重新计算相对动作，并应用 checkpoint 的归一化统计后采样。
 
-```bash
-python scripts/serve_rebot.py --mock-policy --mock-latency .12 --port 8001
-```
-
-在控制仓库运行：
-
-```bash
-python rebot_policy.py --port 8001 --instruction hold --mock-cameras --duration 3
-```
-
-以上服务均以前台进程手动启动，Ctrl-C 关闭。Mock 服务会明确声明 mock 元数据，实机控制端拒绝使用 mock 策略。Mock 策略来自协议包，不加载 openpi。
+测试 mock 服务可运行 `python scripts/serve_rebot.py --mock-policy --mock-latency .12 --port 8001`，按 Ctrl-C 关闭。实机控制端会拒绝 mock 策略。
 
 ## 协议包
 

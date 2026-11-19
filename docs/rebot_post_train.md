@@ -55,7 +55,7 @@ scripts/train_rebot.sh <实验名>
 
 `pi05_rebot_post_train_smoke` 是同一配置的缩小版（batch 16、50 步、第 25 和 50 步存 checkpoint）。
 
-启动新实验可运行 `scripts/train_rebot.sh packing_unscrew_rtc`。通过 `--model.rtc-max-delay` 调整最大前缀步数，设为 0 即恢复普通 flow matching。JAX 模型的 `sample_actions(action_prefix=...)` 接受按当前观测坐标系编码、已归一化并补齐至模型动作维度的前缀。现有 WebSocket 客户端仍以空前缀推理。
+启动新实验可运行 `scripts/train_rebot.sh packing_unscrew_rtc`。通过 `--model.rtc-max-delay` 调整最大前缀步数，设为 0 即恢复普通 flow matching。JAX 模型的 `sample_actions(action_prefix=...)` 接受按当前观测坐标系编码、已归一化并补齐至模型动作维度的前缀。WebSocket 服务默认用 3 步前缀部署拧瓶盖 RTC 权重，见[部署说明](rebot_serving.md)。
 
 读取视频是瓶颈。在训练节点上实测 8 / 16 / 24 / 32 个 worker 分别为 67 / 130 / 168 / 244 样本每秒，而 8 张 H200 约 0.5 秒一步，需要约 130 样本每秒。
 

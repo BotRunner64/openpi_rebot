@@ -65,9 +65,16 @@ class Policy(BasePolicy):
             self._rng = rng or jax.random.key(0)
 
     @override
-    def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:  # type: ignore[misc]
+    def infer(
+        self, obs: dict, *, noise: np.ndarray | None = None, action_prefix: np.ndarray | None = None
+    ) -> dict:  # type: ignore[misc]
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
+        if action_prefix is not None:
+            if self._is_pytorch_model:
+                raise ValueError("RTC prefix sampling requires the JAX policy")
+            # Reuse the training action transforms, including checkpoint normalization and padding.
+            inputs["actions"] = action_prefix
         inputs = self._input_transform(inputs)
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
@@ -80,6 +87,8 @@ class Policy(BasePolicy):
 
         # Prepare kwargs for sample_actions
         sample_kwargs = dict(self._sample_kwargs)
+        if action_prefix is not None:
+            sample_kwargs["action_prefix"] = inputs.pop("actions")
         if noise is not None:
             noise = torch.from_numpy(noise).to(self._pytorch_device) if self._is_pytorch_model else jnp.asarray(noise)
 

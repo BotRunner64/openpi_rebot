@@ -12,6 +12,7 @@ import numpy as np
 
 from openpi.rebot.actions import FPS
 from openpi.rebot.actions import STATE_DIM
+from openpi.rebot.actions import relative_actions
 from openpi.rebot.dataset import CAMERAS as _DATASET_CAMERAS
 
 SIDES = ("left", "right")
@@ -58,9 +59,26 @@ def action_reply(actions, timestamp_ns):
 class RebotLinkPolicy:
     """Callable for rebot_policy_link.serve wrapping an openpi policy."""
 
-    def __init__(self, policy):
+    def __init__(self, policy, prefix_steps=0):
         self.policy = policy
+        self.prefix_steps = prefix_steps
 
     def __call__(self, observation):
-        result = self.policy.infer(model_observation(observation))
+        inputs = model_observation(observation)
+        kwargs = {}
+        if "action_prefix" in observation:
+            import rebot_policy_link as wire
+
+            streams = wire.validate_actions(observation["action_prefix"])["state"]
+            expected = wire.future_timestamps(observation["timestamp_ns"], self.prefix_steps, FPS)
+            if (not expected or set(streams) != set(STATE_STREAMS)
+                    or any(table["timestamp_ns"] != expected for table in streams.values())):
+                raise ValueError("RTC prefix must match the declared length, streams and observation time grid")
+            columns = []
+            for side in SIDES:
+                columns.append(np.asarray(streams[f"{side}_eef"]["pose"]))
+                columns.append(np.asarray(streams[f"{side}_gripper"]["openness"])[:, None])
+            targets = np.concatenate(columns, axis=1)
+            kwargs["action_prefix"] = relative_actions(inputs["state"], targets)
+        result = self.policy.infer(inputs, **kwargs)
         return action_reply(result["actions"], observation["timestamp_ns"])
